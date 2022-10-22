@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
@@ -17,6 +18,7 @@ typedef enum TokenKind {
     Pound,
     Tilda,
     Empty,
+    NewLine,
     
     Error,
 } TokenKind;
@@ -33,22 +35,24 @@ typedef struct Token {
 } Token;
 
 const char printable_tokens[14][11] = {
-    "HeaderOne",
-    "HeaderTwo",
-    "HeaderThree",
-    "Text",
-    "Character",
-    "Pound",
-    "Tilda",
-    "Empty",
-    "Error",
+    "header one",
+    "header two",
+    "headerThree",
+    "text",
+    "character",
+    "pound",
+    "tilda",
+    "empty",
+    "new line",
+    "error",
 };
 
 TokenKind to_token_kind(char c)
 {
-    if (c == '#')        { return Pound; }
-    if (c == '`')        { return Tilda; }
-    if (c == ' ')        { return Empty; }
+    if (c == '#')        { return Pound;   }
+    if (c == '`')        { return Tilda;   }
+    if (c == ' ')        { return Empty;   }
+    if (c == '\n')       { return NewLine; }
     return Character;
 }
 
@@ -59,50 +63,71 @@ Token tokenize_line(char *line, int line_no)
         tmp_tokens_kind[i] = to_token_kind(line[i]);
     }
 
+    if (tmp_tokens_kind[0] == NewLine) {
+        Token new_line = {
+            .kind = NewLine,
+            .pos = {
+                .line_no = line_no + 1,
+                .col = 0,
+            },
+        };
+        
+        return new_line;
+    }
+    
     line[strcspn(line, "\n")] = 0;
-    for (size_t i = 0; i < strlen(line); i++) {
-        if (tmp_tokens_kind[i] == Pound && tmp_tokens_kind[i + 1] == Empty) {
-            Token tmp_header_token = {
+    if (tmp_tokens_kind[0] == Pound) {
+        Token tmp_header_token = {
+            .kind = Error,
+            .pos = {
+                .line_no = line_no + 1,
+                .col = 0,
+            },
+        };
+        strcpy(tmp_header_token.text, line);
+        
+        size_t num_of_pounds = 1;
+        size_t i = 1;
+        while (tmp_tokens_kind[i] == Pound) {
+            num_of_pounds++;
+            i++;
+        }
+
+        printf("number of pounds: %ld\n", num_of_pounds);
+
+        if (num_of_pounds == 1) {
+            strcpy(line, strtok(line, "# "));
+        } else if (num_of_pounds == 2) {
+            strcpy(line, strtok(line, "## "));
+        } else if (num_of_pounds == 3) {
+            strcpy(line, strtok(line, "### "));
+        } else {
+            assert(false && "Unreachable");                
+        }
+        
+        strcpy(tmp_header_token.text, line);
+        
+        assert(num_of_pounds != 0 && "Unreachable");
+        if (num_of_pounds > 3) {
+            Token error = {
                 .kind = Error,
                 .pos = {
-                    .line_no = line_no,
+                    .line_no = line_no + 1,
                     .col = 0,
                 },
             };
-            strcpy(tmp_header_token.text, line);
-
-            size_t num_of_pounds = 1;
-            size_t i = 1;
-            while (tmp_tokens_kind[i] == Pound) {
-                num_of_pounds++;
-                i++;
-            }
-
-            strcpy(line, strtok(line, "# "));
-            strcpy(tmp_header_token.text, line);
-
-            assert(num_of_pounds != 0 && "Unreachable");
-            if (num_of_pounds > 3) {
-                Token error = {
-                    .kind = Error,
-                    .pos = {
-                        .line_no = line_no,
-                        .col = 0,
-                    },
-                };
-                strcpy(error.text, line);
-                return error;
-            }
-            
-            tmp_header_token.kind = num_of_pounds - 1;
-            
-            return tmp_header_token;
+            strcpy(error.text, line);
+            return error;
         }
-
+        
+        tmp_header_token.kind = num_of_pounds - 1;
+        
+        return tmp_header_token;
+    } else {
         Token text_token = {
             .kind = Text,
             .pos = {
-                .line_no = line_no,
+                .line_no = line_no + 1,
                 .col = 0,
             },
         };
@@ -113,7 +138,7 @@ Token tokenize_line(char *line, int line_no)
     Token error = {
         .kind = Error,
         .pos = {
-            .line_no = line_no,
+            .line_no = line_no + 1,
             .col = 0,
         },
     };
@@ -135,15 +160,15 @@ size_t no_of_digits(size_t n)
 void error(Token token, char *message, char *input_file)
 {
     fprintf(stderr, "%s:%ld:%ld: error: %s\n", input_file, token.pos.line_no, token.pos.col, message);
-    fprintf(stderr, "  %ld | %s\n", token.pos.line_no + 1, token.text);
+    fprintf(stderr, "  %ld | %s\n", token.pos.line_no, token.text);
     fputs("  ", stderr);
-    for (size_t i = 0; i <= no_of_digits(token.pos.line_no); i++) {
+    for (size_t i = 0; i <= no_of_digits(token.pos.line_no) - 1; i++) {
         putc(' ', stderr);
     }
     fputs("| ", stderr);
-    //for (size_t i = 0; i < strlen(token.text) - 1; i++) {
-    //    putc('~', stderr);
-    //}        
+    for (size_t i = 0; i < strlen(token.text); i++) {
+        putc('~', stderr);
+    }        
     putc('\n', stderr);
     exit(1);
 }
@@ -189,6 +214,7 @@ int main(int argc, char **argv)
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
+        printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
@@ -221,14 +247,27 @@ int main(int argc, char **argv)
     fputs("\\maketitle\n", out); 
     curr++;
 
-    if (tokens[curr].kind != HeaderTwo || tokens[curr].kind != HeaderThree) {
-        error(tokens[curr], "expected a header two or header one", input_file);
+    if ((tokens[curr].kind != HeaderTwo || tokens[curr].kind != HeaderThree) && tokens[curr].kind != NewLine) {
+        char error_text[255];
+        printf("%s\n", printable_tokens[tokens[curr].kind]);
+        strcpy(error_text, "expected a header one or two, got ");
+        strcat(error_text, printable_tokens[tokens[curr].kind]);
+        error(tokens[curr], error_text, input_file);
     }
 
     curr++;
     while (curr < no_of_lines) {
         Token current = tokens[curr];
 
+        if (current.kind == Error) {
+            error(tokens[curr], "unknown error", input_file);
+        }
+
+        if (current.kind == NewLine) {
+            curr++;
+            continue;
+        }
+        
         if (current.kind == Text) {
             while (tokens[curr].kind == Text) {
                 fputs(tokens[curr].text, out);
@@ -236,7 +275,8 @@ int main(int argc, char **argv)
                 curr++;
             }
         }
-        if (current.kind == HeaderTwo) {
+        
+        if (current.kind == HeaderTwo || current.kind == HeaderThree) {
             fputs("\\section{", out);
             fputs(current.text, out);
             fputs("}\n", out);
