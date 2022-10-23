@@ -17,8 +17,17 @@ typedef enum TokenKind {
     // Token Types
     Text,
     Character,
+
+    // Special Characters
     Pound,
     Tilda,
+    Hyphon,
+    Star,
+
+    // Types
+    Dotpoint,
+
+    // Weird Characters
     Empty,
     NewLine,
     
@@ -36,14 +45,17 @@ typedef struct Token {
     char text[STRING_CAP];
 } Token;
 
-const char printable_tokens[14][11] = {
+const char printable_tokens[16][15] = {
     "title",
     "header two",
-    "headerThree",
+    "header three",
     "text",
     "character",
     "pound",
     "tilda",
+    "hyphon",
+    "star",
+    "dotpoint",
     "empty",
     "new line",
     "error",
@@ -52,6 +64,7 @@ const char printable_tokens[14][11] = {
 TokenKind to_token_kind(char c)
 {
     if (c == '#')        { return Pound;   }
+    if (c == '-')        { return Hyphon;  }
     if (c == '`')        { return Tilda;   }
     if (c == ' ')        { return Empty;   }
     if (c == '\n')       { return NewLine; }
@@ -88,7 +101,6 @@ Token tokenize_line(char *line, int line_no)
             },
         };
         strcpy(tmp_header_token.text, line);
-        
         size_t num_of_pounds = 1;
         size_t i = 1;
         while (tmp_tokens_kind[i] == Pound) {
@@ -118,6 +130,23 @@ Token tokenize_line(char *line, int line_no)
         tmp_header_token.kind = num_of_pounds - 1;
         
         return tmp_header_token;
+    } else if (tmp_tokens_kind[0] == Hyphon) {
+        Token dotpoint = {
+            .kind = Dotpoint,
+            .pos = {
+                .line_no = line_no + 1,
+                .col = 0,
+            },
+        };
+        
+        char parsed_line[len - 2];
+        for (size_t i = 2; i < len; i++) {
+            parsed_line[i - 2] = line[i];
+        }
+        strcpy(line, parsed_line);
+        strcpy(dotpoint.text, line);
+        
+        return dotpoint;
     } else {
         Token text_token = {
             .kind = Text,
@@ -216,6 +245,7 @@ int main(int argc, char **argv)
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
+        printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
@@ -272,7 +302,6 @@ int main(int argc, char **argv)
         if (current.kind == HeaderOne) {
             error(tokens[curr], "can not have more than one title", input_file);
         }
-
         
         if (current.kind == Text) {
             while (tokens[curr].kind == Text) {
@@ -304,6 +333,17 @@ int main(int argc, char **argv)
                 fputc('\n', out);
                 curr++;
             }
+        }
+
+        if (current.kind == Dotpoint) {
+            fputs("\\begin{itemize}\n", out);
+            while (tokens[curr].kind == Dotpoint) {
+                fputs("  \\item ", out);
+                fputs(tokens[curr].text, out);
+                fputc('\n', out);
+                curr++;
+            }
+            fputs("\\end{itemize}\n", out);
         }
         curr++;
     }
