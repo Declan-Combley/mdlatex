@@ -118,11 +118,11 @@ Token tokenize_line(char *line, int line_no)
         }
 
         char parsed_line[len - num_of_pounds];
-        for (size_t i = num_of_pounds - 1; i < len; i++) {
-            parsed_line[i - num_of_pounds] = line[i];
+        for (size_t i = num_of_pounds; i < len; i++) {
+            parsed_line[(i - num_of_pounds) - 1] = line[i];
         }
         strcpy(tmp_header_token.text, parsed_line);
-        
+
         if (num_of_pounds > 3) {
             Token error = {
                 .kind = Error,
@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
-        printf("%s\n", printable_tokens[tokens[line_counter].kind]);
+        //printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
