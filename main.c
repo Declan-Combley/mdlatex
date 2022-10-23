@@ -46,6 +46,7 @@ typedef struct Token {
     TokenKind kind;
     Position pos;
     char text[STRING_CAP];
+    char error_text[255];
 } Token;
 
 const char printable_tokens[][15] = {
@@ -109,6 +110,7 @@ Token tokenize_line(char *line, int line_no)
                 .col = 0,
             },
         };
+        
         strcpy(tmp_header_token.text, line);
         size_t num_of_pounds = 1;
         size_t i = 1;
@@ -132,11 +134,18 @@ Token tokenize_line(char *line, int line_no)
                 },
             };
             strcpy(error.text, line);
+            strcpy(error.error_text, "cannnot have a header number greater than three");
             return error;
         }
         
-        tmp_header_token.kind = num_of_pounds - 1;
-        
+        tmp_header_token.kind = num_of_pounds - 1; // This only works because of the order of the enums
+        if (tmp_tokens_kind[num_of_pounds] != Empty) {
+            strcpy(tmp_header_token.error_text, "expected a space between the header type and header name");
+            strcpy(tmp_header_token.text, line);
+            tmp_header_token.kind = Error;
+            return tmp_header_token;
+        }
+
         return tmp_header_token;
     } else if (tmp_tokens_kind[0] == Hyphon) {
         Token dotpoint = {
@@ -192,30 +201,30 @@ Token tokenize_line(char *line, int line_no)
     return error;
 }
 
-size_t no_of_digits(size_t n)
-{
-    size_t no_of_digits = 0;
-    do  {
-        n /= 2;
-        no_of_digits++;
-    } while (n != 0);
-
-    return no_of_digits;
+size_t number_of_digits(size_t n) {
+    if (n < 10) return 1;
+    if (n < 100) return 2;
+    if (n < 1000) return 3;
+    if (n < 10000) return 4;
+    if (n < 100000) return 5;
+    if (n < 1000000) return 6;
+    if (n < 10000000) return 7;
+    if (n < 100000000) return 8;
+    if (n < 1000000000) return 9;
+    return 10;
 }
 
 void error(Token token, char *message, char *input_file)
 {
     fprintf(stderr, "%s:%ld:%ld: error: %s\n", input_file, token.pos.line_no, token.pos.col, message);
-    fprintf(stderr, "  %ld | %s\n", token.pos.line_no, token.text);
-    fputs("  ", stderr);
-    for (size_t i = 0; i <= no_of_digits(token.pos.line_no) - 1; i++) {
+    fprintf(stderr, " %ld | %s\n ", token.pos.line_no, token.text);
+    for (size_t i = 1; i <= number_of_digits(token.pos.line_no) + 1; i++) {
         putc(' ', stderr);
     }
     fputs("| ", stderr);
-    for (size_t i = 0; i < strlen(token.text); i++) {
+    for (size_t i = 1; i <= strlen(token.text); i++) {
         putc('~', stderr);
-    }        
-    putc('\n', stderr);
+    }
     exit(1);
 }
 
@@ -267,7 +276,6 @@ int main(int argc, char **argv)
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
-        //printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
@@ -290,11 +298,9 @@ int main(int argc, char **argv)
     if (tokens[curr].kind != HeaderOne) {
         error(tokens[0], "expected a header one title at the beginning of the .md file", input_file);
     }
-    
-    fputs("\\documentclass[12pt]{article}\n", out); 
-    fputs("\\title{", out);
-    fputs(tokens[curr].text, out);
-    fputs("}\n", out);
+
+    fputs("\\documentclass[12pt]{article}\n", out);
+    fprintf(out, "\\title{%s}\n", tokens[curr].text);
     fputs("\\author{Mdlatex}\n", out);
     fputs("\\begin{document}\n", out); 
     fputs("\\maketitle\n", out); 
@@ -302,7 +308,6 @@ int main(int argc, char **argv)
 
     if ((tokens[curr].kind != HeaderTwo || tokens[curr].kind != HeaderThree) && tokens[curr].kind != NewLine) {
         char error_text[255];
-        printf("%s\n", printable_tokens[tokens[curr].kind]);
         strcpy(error_text, "expected a header two, got ");
         strcat(error_text, printable_tokens[tokens[curr].kind]);
         error(tokens[curr], error_text, input_file);
@@ -313,7 +318,7 @@ int main(int argc, char **argv)
         Token current = tokens[curr];
 
         if (current.kind == Error) {
-            error(tokens[curr], "unknown error", input_file);
+            error(tokens[curr], tokens[curr].error_text, input_file);
         }
         
         if (current.kind == NewLine) {
@@ -334,9 +339,7 @@ int main(int argc, char **argv)
         }
         
         if (current.kind == HeaderTwo) {
-            fputs("\\section{", out);
-            fputs(current.text, out);
-            fputs("}\n", out);
+            fprintf(out, "\\section{%s}\n", current.text);
             curr++;
             while (tokens[curr].kind == Text) {
                 fputs(tokens[curr].text, out);
@@ -346,9 +349,7 @@ int main(int argc, char **argv)
         }
         
         if (current.kind == HeaderThree) {
-            fputs("\\subsection{", out);
-            fputs(current.text, out);
-            fputs("}\n", out);
+            fprintf(out, "\\subsection{%s}\n", current.text);
             curr++;
             while (tokens[curr].kind == Text) {
                 fputs(tokens[curr].text, out);
@@ -361,9 +362,7 @@ int main(int argc, char **argv)
             fputs("\\begin{itemize}\n", out);
             curr++;
             while (tokens[curr].kind == Dotpoint) {
-                fputs("  \\item ", out);
-                fputs(tokens[curr].text, out);
-                fputc('\n', out);
+                fprintf(out, "\\item %s\n", tokens[curr].text); 
                 curr++;
             }
             fputs("\\end{itemize}\n", out);
@@ -373,9 +372,7 @@ int main(int argc, char **argv)
         if (current.kind == NumberedList) {
             fputs("\\begin{enumerate}\n", out);
             while (tokens[curr].kind == NumberedList) {
-                fputs("  \\item ", out);
-                fputs(tokens[curr].text, out);
-                fputc('\n', out);
+                fprintf(out, "  \\item %s\n", tokens[curr].text);
                 curr++;
             }
             fputs("\\end{enumerate}\n", out);
