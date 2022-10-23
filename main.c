@@ -6,6 +6,8 @@
 #include <assert.h>
 #include <ctype.h>
 
+#define STRING_CAP 1000
+
 typedef enum TokenKind {
     // Headers
     HeaderOne,
@@ -31,11 +33,11 @@ typedef struct Position {
 typedef struct Token {
     TokenKind kind;
     Position pos;
-    char text[255];
+    char text[STRING_CAP];
 } Token;
 
 const char printable_tokens[14][11] = {
-    "header one",
+    "title",
     "header two",
     "headerThree",
     "text",
@@ -58,8 +60,9 @@ TokenKind to_token_kind(char c)
 
 Token tokenize_line(char *line, int line_no)
 {
-    TokenKind tmp_tokens_kind[strlen(line)];
-    for (size_t i = 0; i < strlen(line); i++) {
+    size_t len = strlen(line);
+    TokenKind tmp_tokens_kind[len];
+    for (size_t i = 0; i < len; i++) {
         tmp_tokens_kind[i] = to_token_kind(line[i]);
     }
 
@@ -93,21 +96,13 @@ Token tokenize_line(char *line, int line_no)
             i++;
         }
 
-        printf("number of pounds: %ld\n", num_of_pounds);
-
-        if (num_of_pounds == 1) {
-            strcpy(line, strtok(line, "# "));
-        } else if (num_of_pounds == 2) {
-            strcpy(line, strtok(line, "## "));
-        } else if (num_of_pounds == 3) {
-            strcpy(line, strtok(line, "### "));
-        } else {
-            assert(false && "Unreachable");                
+        char parsed_line[len - num_of_pounds];
+        for (size_t i = 1; i < len; i++) {
+            parsed_line[i - num_of_pounds] = line[i];
         }
-        
+        strcpy(line, parsed_line);
         strcpy(tmp_header_token.text, line);
         
-        assert(num_of_pounds != 0 && "Unreachable");
         if (num_of_pounds > 3) {
             Token error = {
                 .kind = Error,
@@ -198,23 +193,29 @@ int main(int argc, char **argv)
         exit(errno);
     }
 
+    int line_len = 0;
     int no_of_lines = 0;
     for (char c = getc(f); c != EOF; c = getc(f)) {
+        line_len++;
+        if (line_len >= STRING_CAP) {
+            fprintf(stderr, "%s:%d:%d error: string is to long, consider adding a new line\n", input_file, no_of_lines + 1, 0);
+            exit(1);
+        }
         if (c == '\n') {
             no_of_lines++;
+            line_len = 0;
         }
     }
 
     rewind(f);
 
-    Token tokens[no_of_lines];
+    Token tokens[no_of_lines + 1];
     int line_counter = 0;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
-        printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
@@ -250,7 +251,7 @@ int main(int argc, char **argv)
     if ((tokens[curr].kind != HeaderTwo || tokens[curr].kind != HeaderThree) && tokens[curr].kind != NewLine) {
         char error_text[255];
         printf("%s\n", printable_tokens[tokens[curr].kind]);
-        strcpy(error_text, "expected a header one or two, got ");
+        strcpy(error_text, "expected a header two, got ");
         strcat(error_text, printable_tokens[tokens[curr].kind]);
         error(tokens[curr], error_text, input_file);
     }
@@ -262,11 +263,16 @@ int main(int argc, char **argv)
         if (current.kind == Error) {
             error(tokens[curr], "unknown error", input_file);
         }
-
+        
         if (current.kind == NewLine) {
             curr++;
             continue;
         }
+
+        if (current.kind == HeaderOne) {
+            error(tokens[curr], "can not have more than one title", input_file);
+        }
+
         
         if (current.kind == Text) {
             while (tokens[curr].kind == Text) {
@@ -276,7 +282,7 @@ int main(int argc, char **argv)
             }
         }
         
-        if (current.kind == HeaderTwo || current.kind == HeaderThree) {
+        if (current.kind == HeaderTwo) {
             fputs("\\section{", out);
             fputs(current.text, out);
             fputs("}\n", out);
@@ -286,9 +292,18 @@ int main(int argc, char **argv)
                 fputc('\n', out);
                 curr++;
             }
-            fputs("\\end{", out);
+        }
+        
+        if (current.kind == HeaderThree) {
+            fputs("\\subsection{", out);
             fputs(current.text, out);
             fputs("}\n", out);
+            curr++;
+            while (tokens[curr].kind == Text) {
+                fputs(tokens[curr].text, out);
+                fputc('\n', out);
+                curr++;
+            }
         }
         curr++;
     }
