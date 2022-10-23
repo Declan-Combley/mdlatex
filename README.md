@@ -6,7 +6,7 @@ A simple way of converting your markdown files into pdfs offline using [latex](h
 
 - [x] Simple conversion between markdown and latex
 - [ ] Allow for highliting, bolding, underlining and italics
-- [ ] Dotpoints, Numbered Questions
+- [x] Dotpoints, Numbered Questions
 - [ ] Blocks such as math, code, etc..
 
 ## Quickstart
