@@ -17,15 +17,18 @@ typedef enum TokenKind {
     // Token Types
     Text,
     Character,
+    Number,
 
     // Special Characters
     Pound,
     Tilda,
     Hyphon,
     Star,
+    Dot,
 
     // Types
     Dotpoint,
+    NumberedList,
 
     // Weird Characters
     Empty,
@@ -45,17 +48,20 @@ typedef struct Token {
     char text[STRING_CAP];
 } Token;
 
-const char printable_tokens[16][15] = {
+const char printable_tokens[][15] = {
     "title",
     "header two",
     "header three",
     "text",
     "character",
+    "number",
     "pound",
     "tilda",
     "hyphon",
     "star",
+    "dot",
     "dotpoint",
+    "numbered list",
     "empty",
     "new line",
     "error",
@@ -64,10 +70,12 @@ const char printable_tokens[16][15] = {
 TokenKind to_token_kind(char c)
 {
     if (c == '#')        { return Pound;   }
+    if (c == '.')        { return Dot;     }
     if (c == '-')        { return Hyphon;  }
     if (c == '`')        { return Tilda;   }
     if (c == ' ')        { return Empty;   }
     if (c == '\n')       { return NewLine; }
+    if (isdigit(c))      { return Number;  }
     return Character;
 }
 
@@ -75,6 +83,7 @@ Token tokenize_line(char *line, int line_no)
 {
     size_t len = strlen(line);
     TokenKind tmp_tokens_kind[len];
+
     for (size_t i = 0; i < len; i++) {
         tmp_tokens_kind[i] = to_token_kind(line[i]);
     }
@@ -109,11 +118,10 @@ Token tokenize_line(char *line, int line_no)
         }
 
         char parsed_line[len - num_of_pounds];
-        for (size_t i = 1; i < len; i++) {
+        for (size_t i = num_of_pounds - 1; i < len; i++) {
             parsed_line[i - num_of_pounds] = line[i];
         }
-        strcpy(line, parsed_line);
-        strcpy(tmp_header_token.text, line);
+        strcpy(tmp_header_token.text, parsed_line);
         
         if (num_of_pounds > 3) {
             Token error = {
@@ -143,10 +151,24 @@ Token tokenize_line(char *line, int line_no)
         for (size_t i = 2; i < len; i++) {
             parsed_line[i - 2] = line[i];
         }
-        strcpy(line, parsed_line);
-        strcpy(dotpoint.text, line);
+        strcpy(dotpoint.text, parsed_line);
         
         return dotpoint;
+    } else if (tmp_tokens_kind[0] == Number && tmp_tokens_kind[1] == Dot) {
+        Token numbered_list_token = {
+            .kind = NumberedList,
+            .pos = {
+                .line_no = line_no + 1,
+                .col = 0,
+            },
+        };
+        char parsed_line[len - 3];
+        for (size_t i = 3; i < len; i++) {
+            parsed_line[i - 3] = line[i];
+        }
+        strcpy(numbered_list_token.text, parsed_line);
+        
+        return numbered_list_token;
     } else {
         Token text_token = {
             .kind = Text,
@@ -337,6 +359,7 @@ int main(int argc, char **argv)
 
         if (current.kind == Dotpoint) {
             fputs("\\begin{itemize}\n", out);
+            curr++;
             while (tokens[curr].kind == Dotpoint) {
                 fputs("  \\item ", out);
                 fputs(tokens[curr].text, out);
@@ -344,7 +367,19 @@ int main(int argc, char **argv)
                 curr++;
             }
             fputs("\\end{itemize}\n", out);
+            curr++;
         }
+        
+        if (current.kind == NumberedList) {
+            fputs("\\begin{enumerate}\n", out);
+            while (tokens[curr].kind == NumberedList) {
+                fputs("  \\item ", out);
+                fputs(tokens[curr].text, out);
+                fputc('\n', out);
+                curr++;
+            }
+            fputs("\\end{enumerate}\n", out);
+        }        
         curr++;
     }
 
