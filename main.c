@@ -71,6 +71,7 @@ const char printable_tokens[][15] = {
 TokenKind to_token_kind(char c)
 {
     if (c == '#')        { return Pound;   }
+    if (c == '*')        { return Star;    }
     if (c == '.')        { return Dot;     }
     if (c == '-')        { return Hyphon;  }
     if (c == '`')        { return Tilda;   }
@@ -332,8 +333,24 @@ int main(int argc, char **argv)
         
         if (current.kind == Text) {
             while (tokens[curr].kind == Text) {
-                fputs(tokens[curr].text, out);
-                fputc('\n', out);
+                for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
+                    if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
+                        i += 2;
+                        fputs("\\textbf{", out);
+                        while (to_token_kind(tokens[curr].text[i]) != Star) {
+                            if (i >= strlen(tokens[curr].text)) {
+                                error(tokens[curr], "expected closing **", input_file);
+                            }
+                            fputc(tokens[curr].text[i], out);
+                            i++;
+                        }
+                        fputs("}", out);
+                        i++;
+                    } else {
+                        putc(tokens[curr].text[i], out);
+                    }
+                }
+                putc('\n', out);
                 curr++;
             }
         }
