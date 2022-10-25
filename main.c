@@ -315,7 +315,7 @@ int main(int argc, char **argv)
     }
 
     curr++;
-    while (curr < no_of_lines) {
+    while (curr <= no_of_lines) {
         Token current = tokens[curr];
 
         if (current.kind == Error) {
@@ -357,7 +357,7 @@ int main(int argc, char **argv)
         
         if (current.kind == HeaderTwo) {
             fprintf(out, "\\section{%s}\n", current.text);
-            curr++;
+            //curr++;
             while (tokens[curr].kind == Text) {
                 fputs(tokens[curr].text, out);
                 fputc('\n', out);
@@ -377,9 +377,8 @@ int main(int argc, char **argv)
 
         if (current.kind == Dotpoint) {
             fputs("\\begin{itemize}\n", out);
-            curr++;
             while (tokens[curr].kind == Dotpoint) {
-                fprintf(out, "\\item %s\n", tokens[curr].text); 
+                fprintf(out, "  \\item %s\n", tokens[curr].text); 
                 curr++;
             }
             fputs("\\end{itemize}\n", out);
