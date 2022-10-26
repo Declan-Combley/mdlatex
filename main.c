@@ -215,17 +215,23 @@ size_t number_of_digits(size_t n) {
     return 10;
 }
 
-typedef struct Strings {
-    
-} Strings;
-
-char *get_string_between_delim(char *string , char *delim)
+// TODO: Make this function safer
+char *get_string_between_bold(char *string, size_t *delim_index)
 {
-    char *parsed_string = malloc(strlen(string) * sizeof(char));
-
+    char *parsed_string = malloc((strlen(string) - (sizeof(char) * *delim_index)) * sizeof(char));
+    *delim_index += 2;
+    size_t tmp = 0;
+    for (size_t i = *delim_index; i < strlen(string) - 1; i++) {
+        if (to_token_kind(string[i]) == Star && to_token_kind(string[i + 1]) == Star) {
+            break;
+        }
+        parsed_string[tmp] = string[i];
+        tmp++;
+    }
+    parsed_string[tmp] = '\0';
+    *delim_index += tmp + 1;
     return parsed_string;
 }
-
 
 void error(Token token, char *message, char *input_file)
 {
@@ -327,7 +333,7 @@ int main(int argc, char **argv)
     }
 
     curr++;
-    while (curr <= no_of_lines) {
+    while (curr < no_of_lines) {
         Token current = tokens[curr];
 
         if (current.kind == Error) {
@@ -347,17 +353,9 @@ int main(int argc, char **argv)
             while (tokens[curr].kind == Text) {
                 for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                     if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                        i += 2;
-                        fputs("\\textbf{", out);
-                        while (to_token_kind(tokens[curr].text[i]) != Star) {
-                            if (i >= strlen(tokens[curr].text)) {
-                                error(tokens[curr], "expected closing **", input_file);
-                            }
-                            fputc(tokens[curr].text[i], out);
-                            i++;
-                        }
-                        fputs("}", out);
-                        i++;
+                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                        fprintf(out, "\\textbf{%s}", bold_text);
+                        free(bold_text);
                     } else {
                         putc(tokens[curr].text[i], out);
                     }
@@ -368,43 +366,74 @@ int main(int argc, char **argv)
         }
         
         if (current.kind == HeaderTwo) {
-            fprintf(out, "\\section{%s}\n", current.text);
-            while (tokens[curr].kind == Text) {
-                fputs(tokens[curr].text, out);
-                fputc('\n', out);
-                curr++;
+            fprintf(out, "\\section{");
+            for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
+                if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
+                    char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                    fprintf(out, "\\textbf{%s}", bold_text);
+                    free(bold_text);
+                } else {
+                    putc(tokens[curr].text[i], out);
+                }
             }
+            fputs("}\n", out);
+            curr++;
         }
         
         if (current.kind == HeaderThree) {
-            fprintf(out, "\\subsection{%s}\n", current.text);
-            curr++;
-            while (tokens[curr].kind == Text) {
-                fputs(tokens[curr].text, out);
-                fputc('\n', out);
-                curr++;
+            fprintf(out, "\\subsection{");
+            for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
+                if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
+                    char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                    fprintf(out, "\\textbf{%s}", bold_text);
+                    free(bold_text);
+                } else {
+                    putc(tokens[curr].text[i], out);
+                }
             }
+            fputs("}\n", out);
+            curr++;
         }
 
         if (current.kind == Dotpoint) {
             fputs("\\begin{itemize}\n", out);
             while (tokens[curr].kind == Dotpoint) {
-                fprintf(out, "  \\item %s\n", tokens[curr].text); 
+                fputs("  \\item{", out);
+                for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
+                    if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
+                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                        fprintf(out, "  \\textbf{%s}", bold_text);
+                        free(bold_text);
+                    } else {
+                        putc(tokens[curr].text[i], out);
+                    }
+                }
+                fputs("}\n", out);
                 curr++;
-            }
+            }            
             fputs("\\end{itemize}\n", out);
             curr++;
         }
-        
+
         if (current.kind == NumberedList) {
             fputs("\\begin{enumerate}\n", out);
             while (tokens[curr].kind == NumberedList) {
-                fprintf(out, "  \\item %s\n", tokens[curr].text);
+                fputs("  \\item{", out);
+                for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
+                    if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
+                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                        fprintf(out, "\\textbf{%s}", bold_text);
+                        free(bold_text);
+                    } else {
+                        putc(tokens[curr].text[i], out);
+                    }
+                }
+                fputs("}\n", out);
                 curr++;
-            }
+            }            
             fputs("\\end{enumerate}\n", out);
-        }        
-        curr++;
+            curr++;
+        }
     }
 
     fputs("\\end{document}\n", out);
