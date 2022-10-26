@@ -215,6 +215,18 @@ size_t number_of_digits(size_t n) {
     return 10;
 }
 
+typedef struct Strings {
+    
+} Strings;
+
+char *get_string_between_delim(char *string , char *delim)
+{
+    char *parsed_string = malloc(strlen(string) * sizeof(char));
+
+    return parsed_string;
+}
+
+
 void error(Token token, char *message, char *input_file)
 {
     fprintf(stderr, "%s:%ld:%ld: error: %s\n", input_file, token.pos.line_no, token.pos.col, message);
@@ -357,7 +369,6 @@ int main(int argc, char **argv)
         
         if (current.kind == HeaderTwo) {
             fprintf(out, "\\section{%s}\n", current.text);
-            //curr++;
             while (tokens[curr].kind == Text) {
                 fputs(tokens[curr].text, out);
                 fputc('\n', out);
