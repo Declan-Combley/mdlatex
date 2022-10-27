@@ -25,6 +25,7 @@ typedef enum TokenKind {
     Hyphon,
     Star,
     Dot,
+    Chevron,
 
     // Types
     Dotpoint,
@@ -61,6 +62,7 @@ const char printable_tokens[][15] = {
     "hyphon",
     "star",
     "dot",
+    "chevron",
     "dotpoint",
     "numbered list",
     "empty",
@@ -72,6 +74,7 @@ TokenKind to_token_kind(char c)
 {
     if (c == '#')        { return Pound;   }
     if (c == '*')        { return Star;    }
+    if (c == '^')        { return Chevron; }
     if (c == '.')        { return Dot;     }
     if (c == '-')        { return Hyphon;  }
     if (c == '`')        { return Tilda;   }
@@ -215,22 +218,24 @@ size_t number_of_digits(size_t n) {
     return 10;
 }
 
-// TODO: Make this function safer
-char *get_string_between_bold(char *string, size_t *delim_index)
+char *get_string_between_delim(char *string, size_t *delim_index, char *delim)
 {
     char *parsed_string = malloc((strlen(string) - (sizeof(char) * *delim_index)) * sizeof(char));
-    *delim_index += 2;
-    size_t tmp = 0;
+    *delim_index += strlen(delim);
+    size_t parsed_string_index = 0;
     for (size_t i = *delim_index; i < strlen(string) - 1; i++) {
-        if (to_token_kind(string[i]) == Star && to_token_kind(string[i + 1]) == Star) {
-            break;
+        for (size_t tmp_delim_index = 0; string[i] == delim[tmp_delim_index]; tmp_delim_index++) {
+            if (tmp_delim_index == strlen(delim) - 1) {
+                parsed_string[parsed_string_index] = '\0';
+                *delim_index += parsed_string_index + strlen(delim) - 1;
+                printf("%s\n", parsed_string);
+                return parsed_string;           
+            }
         }
-        parsed_string[tmp] = string[i];
-        tmp++;
+        parsed_string[parsed_string_index] = string[i];
+        parsed_string_index++;
     }
-    parsed_string[tmp] = '\0';
-    *delim_index += tmp + 1;
-    return parsed_string;
+    return NULL;
 }
 
 void error(Token token, char *message, char *input_file)
@@ -353,7 +358,10 @@ int main(int argc, char **argv)
             while (tokens[curr].kind == Text) {
                 for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                     if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                        char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
+                        if (bold_text == NULL) {
+                            error(tokens[curr], "expected a closing **", input_file);
+                        }
                         fprintf(out, "\\textbf{%s}", bold_text);
                         free(bold_text);
                     } else {
@@ -369,9 +377,12 @@ int main(int argc, char **argv)
             fprintf(out, "\\section{");
             for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                 if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                    char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                    char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
+                    if (bold_text == NULL) {
+                        error(tokens[curr], "expected a closing **", input_file);
+                    }
                     fprintf(out, "\\textbf{%s}", bold_text);
-                    free(bold_text);
+                    free(bold_text);                    
                 } else {
                     putc(tokens[curr].text[i], out);
                 }
@@ -384,9 +395,12 @@ int main(int argc, char **argv)
             fprintf(out, "\\subsection{");
             for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                 if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                    char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                    char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
+                    if (bold_text == NULL) {
+                        error(tokens[curr], "expected a closing **", input_file);
+                    }
                     fprintf(out, "\\textbf{%s}", bold_text);
-                    free(bold_text);
+                    free(bold_text);                                        
                 } else {
                     putc(tokens[curr].text[i], out);
                 }
@@ -401,8 +415,11 @@ int main(int argc, char **argv)
                 fputs("  \\item{", out);
                 for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                     if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
-                        fprintf(out, "  \\textbf{%s}", bold_text);
+                        char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
+                        if (bold_text == NULL) {
+                            error(tokens[curr], "expected a closing **", input_file);
+                        }                        
+                        fprintf(out, "\\textbf{%s}", bold_text);
                         free(bold_text);
                     } else {
                         putc(tokens[curr].text[i], out);
@@ -421,9 +438,12 @@ int main(int argc, char **argv)
                 fputs("  \\item{", out);
                 for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
                     if (to_token_kind(tokens[curr].text[i]) == Star && to_token_kind(tokens[curr].text[i + 1]) == Star) {
-                        char *bold_text = get_string_between_bold(tokens[curr].text, &i);
+                        char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
+                        if (bold_text == NULL) {
+                            error(tokens[curr], "expected a closing **", input_file);
+                        }                        
                         fprintf(out, "\\textbf{%s}", bold_text);
-                        free(bold_text);
+                        free(bold_text);                        
                     } else {
                         putc(tokens[curr].text[i], out);
                     }
