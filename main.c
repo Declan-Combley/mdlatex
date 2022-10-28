@@ -18,6 +18,9 @@ typedef enum TokenKind {
     Text,
     Character,
     Number,
+    UnknownBlock,
+    MathBlock,
+    EndBlock,
 
     // Special Characters
     Pound,
@@ -26,6 +29,7 @@ typedef enum TokenKind {
     Star,
     Dot,
     Chevron,
+    Equals,
 
     // Types
     Dotpoint,
@@ -57,12 +61,16 @@ const char printable_tokens[][15] = {
     "text",
     "character",
     "number",
+    "unknown block",
+    "math block",
+    "end block",
     "pound",
     "tilda",
     "hyphon",
     "star",
     "dot",
     "chevron",
+    "equals",
     "dotpoint",
     "numbered list",
     "empty",
@@ -73,6 +81,7 @@ const char printable_tokens[][15] = {
 TokenKind to_token_kind(char c)
 {
     if (c == '#')        { return Pound;   }
+    if (c == '=')        { return Equals;  }
     if (c == '*')        { return Star;    }
     if (c == '^')        { return Chevron; }
     if (c == '.')        { return Dot;     }
@@ -106,6 +115,34 @@ Token tokenize_line(char *line, int line_no)
     }
     
     line[strcspn(line, "\n")] = 0;
+    if (tmp_tokens_kind[0] == Tilda && tmp_tokens_kind[1] == Tilda && tmp_tokens_kind[2] == Tilda) {
+        Token tmp_block_token = {
+            .kind = EndBlock,
+            .pos = {
+                .line_no = line_no + 1,
+                .col = 0,
+            },
+        };
+
+        strcpy(tmp_block_token.text, line);            
+        if (tmp_tokens_kind[3] != Character) {
+            tmp_block_token.kind = EndBlock;
+        } else {
+            char parsed_line[strlen(line) - 4];
+            for (size_t i = 3; i <= strlen(line); i++) {
+                parsed_line[i - 3] = line[i];
+            }
+            parsed_line[strlen(line)] = '\0';            
+            if (strcmp(parsed_line, "math") == 0) {
+                tmp_block_token.kind = MathBlock;
+            } else {
+                tmp_block_token.kind = UnknownBlock;
+            }
+        }
+
+        return tmp_block_token;
+    }
+
     if (tmp_tokens_kind[0] == Pound) {
         Token tmp_header_token = {
             .kind = Error,
@@ -167,7 +204,7 @@ Token tokenize_line(char *line, int line_no)
         strcpy(dotpoint.text, parsed_line);
         
         return dotpoint;
-    } else if (tmp_tokens_kind[0] == Number && tmp_tokens_kind[1] == Dot) {
+    } else if (tmp_tokens_kind[0] == Number && tmp_tokens_kind[1] == Dot && tmp_tokens_kind[2] == Empty) {
         Token numbered_list_token = {
             .kind = NumberedList,
             .pos = {
@@ -228,7 +265,6 @@ char *get_string_between_delim(char *string, size_t *delim_index, char *delim)
             if (tmp_delim_index == strlen(delim) - 1) {
                 parsed_string[parsed_string_index] = '\0';
                 *delim_index += parsed_string_index + strlen(delim) - 1;
-                printf("%s\n", parsed_string);
                 return parsed_string;           
             }
         }
@@ -249,6 +285,7 @@ void error(Token token, char *message, char *input_file)
     for (size_t i = 1; i <= strlen(token.text); i++) {
         putc('~', stderr);
     }
+    putc('\n', stderr);
     exit(1);
 }
 
@@ -300,6 +337,7 @@ int main(int argc, char **argv)
     ssize_t read;
     while ((read = getline(&line, &len, f)) != -1) {
         tokens[line_counter] = tokenize_line(line, line_counter);
+        //printf("%s\n", printable_tokens[tokens[line_counter].kind]);
         line_counter++;
     }
 
@@ -324,6 +362,7 @@ int main(int argc, char **argv)
     }
 
     fputs("\\documentclass[12pt]{article}\n", out);
+    fputs("\\usepackage{amsmath}\n", out);
     fprintf(out, "\\title{%s}\n", tokens[curr].text);
     fputs("\\author{Mdlatex}\n", out);
     fputs("\\begin{document}\n", out); 
@@ -371,6 +410,7 @@ int main(int argc, char **argv)
                 putc('\n', out);
                 curr++;
             }
+            continue;
         }
         
         if (current.kind == HeaderTwo) {
@@ -389,6 +429,7 @@ int main(int argc, char **argv)
             }
             fputs("}\n", out);
             curr++;
+            continue;
         }
         
         if (current.kind == HeaderThree) {
@@ -407,6 +448,7 @@ int main(int argc, char **argv)
             }
             fputs("}\n", out);
             curr++;
+            continue;
         }
 
         if (current.kind == Dotpoint) {
@@ -430,6 +472,7 @@ int main(int argc, char **argv)
             }            
             fputs("\\end{itemize}\n", out);
             curr++;
+            continue;
         }
 
         if (current.kind == NumberedList) {
@@ -452,8 +495,62 @@ int main(int argc, char **argv)
                 curr++;
             }            
             fputs("\\end{enumerate}\n", out);
-            curr++;
+            continue;
         }
+
+        if (current.kind == UnknownBlock) {
+            error(current, "unknown block type", input_file);
+        }
+        
+        if (current.kind == EndBlock) {
+            error(current, "expected an opening block", input_file);
+        }
+
+        if (current.kind == MathBlock) {
+            fputs("\\begin{gather*}\n", out);
+            curr++;
+            while (tokens[curr].kind != EndBlock) {
+                fputs("  ", out);
+                if (tokens[curr].kind != Text && tokens[curr].kind != Empty && tokens[curr].kind != NewLine) {
+                    char error_text[255];
+                    strcat(error_text, "expected a closing block before ");
+                    strcat(error_text, printable_tokens[tokens[curr].kind]);
+                    error(tokens[curr], error_text, input_file);
+                }
+                
+                for (size_t string_index = 0; string_index < strlen(tokens[curr].text); string_index++) {
+                    if (to_token_kind(tokens[curr].text[string_index]) == Chevron) {
+                        if (string_index == strlen(tokens[curr].text) - 1) {
+                            error(tokens[curr], "expected another number", input_file);
+                        }
+                        string_index++;
+                        fputs("^{", out);
+                        while (to_token_kind(tokens[curr].text[string_index ]) == Number) {
+                            fputc(tokens[curr].text[string_index], out);
+                            string_index++;
+                        }
+                        fputc('}', out);
+                        string_index--;
+                    } else {
+                        if (to_token_kind(tokens[curr].text[string_index]) == Star) {
+                            fputs("\\times ", out);
+                            string_index++;
+                        } else if (to_token_kind(tokens[curr].text[string_index]) == Empty) {
+                            fputs("\\;", out);
+                        } else {
+                            fputc(tokens[curr].text[string_index], out);
+                        }
+                    }
+                }
+                fputs("\\\\", out);
+                putc('\n', out);
+                curr++;
+            }
+            fputs("\\end{gather*}\n", out);
+            curr++;
+            continue;
+        }
+        curr++;
     }
 
     fputs("\\end{document}\n", out);
