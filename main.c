@@ -38,7 +38,7 @@ typedef enum TokenKind {
     // Weird Characters
     Empty,
     NewLine,
-    
+
     Error,
 } TokenKind;
 
@@ -110,10 +110,10 @@ Token tokenize_line(char *line, int line_no)
                 .col = 0,
             },
         };
-        
+
         return new_line;
     }
-    
+
     line[strcspn(line, "\n")] = 0;
     if (tmp_tokens_kind[0] == Tilda && tmp_tokens_kind[1] == Tilda && tmp_tokens_kind[2] == Tilda) {
         Token tmp_block_token = {
@@ -124,7 +124,7 @@ Token tokenize_line(char *line, int line_no)
             },
         };
 
-        strcpy(tmp_block_token.text, line);            
+        strcpy(tmp_block_token.text, line);
         if (tmp_tokens_kind[3] != Character) {
             tmp_block_token.kind = EndBlock;
         } else {
@@ -132,7 +132,7 @@ Token tokenize_line(char *line, int line_no)
             for (size_t i = 3; i <= strlen(line); i++) {
                 parsed_line[i - 3] = line[i];
             }
-            parsed_line[strlen(line)] = '\0';            
+            parsed_line[strlen(line)] = '\0';
             if (strcmp(parsed_line, "math") == 0) {
                 tmp_block_token.kind = MathBlock;
             } else {
@@ -151,7 +151,7 @@ Token tokenize_line(char *line, int line_no)
                 .col = 0,
             },
         };
-        
+
         strcpy(tmp_header_token.text, line);
         size_t num_of_pounds = 1;
         size_t i = 1;
@@ -178,7 +178,7 @@ Token tokenize_line(char *line, int line_no)
             strcpy(error.error_text, "cannnot have a header number greater than three");
             return error;
         }
-        
+
         tmp_header_token.kind = num_of_pounds - 1; // This only works because of the order of the enums
         if (tmp_tokens_kind[num_of_pounds] != Empty) {
             strcpy(tmp_header_token.error_text, "expected a space between the header type and header name");
@@ -196,13 +196,13 @@ Token tokenize_line(char *line, int line_no)
                 .col = 0,
             },
         };
-        
+
         char parsed_line[len - 2];
         for (size_t i = 2; i < len; i++) {
             parsed_line[i - 2] = line[i];
         }
         strcpy(dotpoint.text, parsed_line);
-        
+
         return dotpoint;
     } else if (tmp_tokens_kind[0] == Number && tmp_tokens_kind[1] == Dot && tmp_tokens_kind[2] == Empty) {
         Token numbered_list_token = {
@@ -217,7 +217,7 @@ Token tokenize_line(char *line, int line_no)
             parsed_line[i - 3] = line[i];
         }
         strcpy(numbered_list_token.text, parsed_line);
-        
+
         return numbered_list_token;
     } else {
         Token text_token = {
@@ -238,7 +238,7 @@ Token tokenize_line(char *line, int line_no)
             .col = 0,
         },
     };
-    
+
     return error;
 }
 
@@ -265,7 +265,7 @@ char *get_string_between_delim(char *string, size_t *delim_index, char *delim)
             if (tmp_delim_index == strlen(delim) - 1) {
                 parsed_string[parsed_string_index] = '\0';
                 *delim_index += parsed_string_index + strlen(delim) - 1;
-                return parsed_string;           
+                return parsed_string;
             }
         }
         parsed_string[parsed_string_index] = string[i];
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "error: %s\n", strerror(errno));
         exit(errno);
     }
-    
+
     int curr = 0;
     if (tokens[curr].kind != HeaderOne) {
         error(tokens[0], "expected a header one title at the beginning of the .md file", input_file);
@@ -365,8 +365,8 @@ int main(int argc, char **argv)
     fputs("\\usepackage{amsmath}\n", out);
     fprintf(out, "\\title{%s}\n", tokens[curr].text);
     fputs("\\author{Mdlatex}\n", out);
-    fputs("\\begin{document}\n", out); 
-    fputs("\\maketitle\n", out); 
+    fputs("\\begin{document}\n", out);
+    fputs("\\maketitle\n", out);
     curr++;
 
     if ((tokens[curr].kind != HeaderTwo || tokens[curr].kind != HeaderThree) && tokens[curr].kind != NewLine) {
@@ -383,7 +383,7 @@ int main(int argc, char **argv)
         if (current.kind == Error) {
             error(tokens[curr], tokens[curr].error_text, input_file);
         }
-        
+
         if (current.kind == NewLine) {
             curr++;
             continue;
@@ -392,7 +392,7 @@ int main(int argc, char **argv)
         if (current.kind == HeaderOne) {
             error(tokens[curr], "can not have more than one title", input_file);
         }
-        
+
         if (current.kind == Text) {
             while (tokens[curr].kind == Text) {
                 for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
@@ -412,7 +412,7 @@ int main(int argc, char **argv)
             }
             continue;
         }
-        
+
         if (current.kind == HeaderTwo) {
             fprintf(out, "\\section{");
             for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
@@ -422,7 +422,7 @@ int main(int argc, char **argv)
                         error(tokens[curr], "expected a closing **", input_file);
                     }
                     fprintf(out, "\\textbf{%s}", bold_text);
-                    free(bold_text);                    
+                    free(bold_text);
                 } else {
                     putc(tokens[curr].text[i], out);
                 }
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
             curr++;
             continue;
         }
-        
+
         if (current.kind == HeaderThree) {
             fprintf(out, "\\subsection{");
             for (size_t i = 0; i < strlen(tokens[curr].text); i++) {
@@ -441,7 +441,7 @@ int main(int argc, char **argv)
                         error(tokens[curr], "expected a closing **", input_file);
                     }
                     fprintf(out, "\\textbf{%s}", bold_text);
-                    free(bold_text);                                        
+                    free(bold_text);
                 } else {
                     putc(tokens[curr].text[i], out);
                 }
@@ -460,7 +460,7 @@ int main(int argc, char **argv)
                         char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
                         if (bold_text == NULL) {
                             error(tokens[curr], "expected a closing **", input_file);
-                        }                        
+                        }
                         fprintf(out, "\\textbf{%s}", bold_text);
                         free(bold_text);
                     } else {
@@ -469,7 +469,7 @@ int main(int argc, char **argv)
                 }
                 fputs("}\n", out);
                 curr++;
-            }            
+            }
             fputs("\\end{itemize}\n", out);
             curr++;
             continue;
@@ -484,16 +484,16 @@ int main(int argc, char **argv)
                         char *bold_text = get_string_between_delim(tokens[curr].text, &i, "**");
                         if (bold_text == NULL) {
                             error(tokens[curr], "expected a closing **", input_file);
-                        }                        
+                        }
                         fprintf(out, "\\textbf{%s}", bold_text);
-                        free(bold_text);                        
+                        free(bold_text);
                     } else {
                         putc(tokens[curr].text[i], out);
                     }
                 }
                 fputs("}\n", out);
                 curr++;
-            }            
+            }
             fputs("\\end{enumerate}\n", out);
             continue;
         }
@@ -501,7 +501,7 @@ int main(int argc, char **argv)
         if (current.kind == UnknownBlock) {
             error(current, "unknown block type", input_file);
         }
-        
+
         if (current.kind == EndBlock) {
             error(current, "expected an opening block", input_file);
         }
@@ -517,7 +517,7 @@ int main(int argc, char **argv)
                     strcat(error_text, printable_tokens[tokens[curr].kind]);
                     error(tokens[curr], error_text, input_file);
                 }
-                
+
                 for (size_t string_index = 0; string_index < strlen(tokens[curr].text); string_index++) {
                     if (to_token_kind(tokens[curr].text[string_index]) == Chevron) {
                         if (string_index == strlen(tokens[curr].text) - 1) {
@@ -557,7 +557,7 @@ int main(int argc, char **argv)
     if (fclose(out) != 0) {
         fprintf(stderr, "error: %s\n", strerror(errno));
         exit(errno);
-    } 
-    
+    }
+
     return 0;
 }

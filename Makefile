@@ -5,4 +5,4 @@ default:
 	$(cc) main.c -o ml $(flags)
 
 clean:
-	rm -rf ml *.tex *.pdf *.log *.aux
+	rm -rf ml *.tex *.log *.aux
