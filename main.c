@@ -386,6 +386,7 @@ int main(int argc, char **argv)
 
         if (current.kind == NewLine) {
             curr++;
+            fputs("\\newline \\newline\n", out);
             continue;
         }
 
